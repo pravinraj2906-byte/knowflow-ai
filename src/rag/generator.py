@@ -176,9 +176,18 @@ Answer based ONLY on the context above. If the context does not contain the answ
             )
 
         except Exception as e:
+            err_str = str(e)
             logger.error("Error generating answer from Gemini: %s", e)
+            if "api_key_invalid" in err_str.lower() or "api key not valid" in err_str.lower():
+                answer_msg = (
+                    "❌ **Invalid Gemini API Key**: The provided API key was rejected by Google AI (API_KEY_INVALID). "
+                    "Please update your Gemini API key in the sidebar or `.env` file."
+                )
+            else:
+                answer_msg = f"An error occurred while generating the answer: {err_str}"
+
             return GenerationResult(
-                answer=f"An error occurred while generating the answer: {str(e)}",
+                answer=answer_msg,
                 sources=sources,
                 retrieved_chunks=retrieved_chunks,
                 model_used=self.model_name,

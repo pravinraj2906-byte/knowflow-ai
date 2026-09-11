@@ -161,7 +161,12 @@ class GeminiEmbedder:
                     )
                     if not (is_ssl_or_conn or is_rate_or_server):
                         # Non-transient error (e.g. invalid auth, invalid model), abort immediately
-                        raise EmbeddingError(f"Failed to embed document chunks: {err_str}") from e
+                        if "api_key_invalid" in err_str.lower() or "api key not valid" in err_str.lower():
+                            raise EmbeddingError(
+                                "Invalid Gemini API Key: The provided API key is invalid or was rejected by Google AI. "
+                                "Please update your GEMINI_API_KEY with a valid key from Google AI Studio."
+                            ) from e
+                        raise EmbeddingError(f"Embedding request failed: {err_str}") from e
 
         raise EmbeddingError(
             f"Failed to embed document batch (chunks {batch_idx} to {batch_idx + expected_count}) "

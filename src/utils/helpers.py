@@ -21,14 +21,31 @@ def load_api_key() -> Optional[str]:
     Returns:
         The valid API key string, or None if missing or unset/placeholder.
     """
-    # Reload in case .env was updated at runtime
-    load_dotenv(override=False)
-    api_key = os.getenv("GEMINI_API_KEY", "").strip()
-    
-    # Check for empty or placeholder values
-    if not api_key or api_key in ("your_api_key_here", "YOUR_API_KEY_HERE", "your_key"):
+    placeholder_patterns = [
+        "your_api_key_here",
+        "your_actual_gemini_api_key",
+        "your_gemini_api_key",
+        "your_key",
+        "placeholder",
+    ]
+
+    def is_placeholder(val: str) -> bool:
+        if not val:
+            return True
+        low = val.lower()
+        return any(p in low for p in placeholder_patterns) or low.startswith("<") or low.startswith("your_")
+
+    current_env_key = os.getenv("GEMINI_API_KEY", "").strip()
+    if current_env_key and not is_placeholder(current_env_key):
+        return current_env_key
+
+    # Current env is empty or a placeholder; reload from .env in case user updated it
+    load_dotenv(override=True)
+    reloaded_key = os.getenv("GEMINI_API_KEY", "").strip()
+    if not reloaded_key or is_placeholder(reloaded_key):
         return None
-    return api_key
+
+    return reloaded_key
 
 
 def clean_filename(filename: str) -> str:

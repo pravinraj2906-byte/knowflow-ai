@@ -126,24 +126,62 @@ with st.sidebar:
     st.markdown("---")
 
     # API Key Configuration Section
+    if "api_key_error" in st.session_state and st.session_state["api_key_error"]:
+        st.error(f"⚠️ {st.session_state['api_key_error']}")
+
     if not active_api_key:
         st.error("🔑 API Key Required")
         user_key = st.text_input(
             "Enter Gemini API Key",
             type="password",
+            key="initial_key_input",
             help="Your key is kept only in current session and never stored permanently in git.",
         )
-        if user_key.strip():
-            st.session_state.api_key = user_key.strip()
-            os.environ["GEMINI_API_KEY"] = user_key.strip()
-            st.success("API Key updated!")
-            st.rerun()
+        if st.button("Save API Key", use_container_width=True):
+            if user_key.strip():
+                st.session_state.api_key = user_key.strip()
+                os.environ["GEMINI_API_KEY"] = user_key.strip()
+                if "api_key_error" in st.session_state:
+                    del st.session_state["api_key_error"]
+                st.success("API Key updated!")
+                st.rerun()
+            else:
+                st.warning("Please enter a non-empty API key.")
         st.markdown(
-            "💡 Alternatively, set `GEMINI_API_KEY` in your `.env` file."
+            "💡 Get a free key at [Google AI Studio](https://aistudio.google.com/) or configure `GEMINI_API_KEY` in `.env`."
         )
         st.markdown("---")
     else:
         st.success("🔒 Gemini API Key Active")
+        with st.expander("🔑 Change / Update API Key"):
+            new_key = st.text_input(
+                "New Gemini API Key",
+                type="password",
+                key="new_key_input",
+                help="Paste a new Gemini API key here to replace the current one.",
+            )
+            col_k1, col_k2 = st.columns(2)
+            with col_k1:
+                if st.button("Update Key", use_container_width=True):
+                    if new_key.strip():
+                        st.session_state.api_key = new_key.strip()
+                        os.environ["GEMINI_API_KEY"] = new_key.strip()
+                        if "api_key_error" in st.session_state:
+                            del st.session_state["api_key_error"]
+                        st.toast("API Key updated!")
+                        st.rerun()
+                    else:
+                        st.warning("Key cannot be empty.")
+            with col_k2:
+                if st.button("Clear Key", use_container_width=True):
+                    st.session_state.api_key = ""
+                    if "GEMINI_API_KEY" in os.environ:
+                        del os.environ["GEMINI_API_KEY"]
+                    if "api_key_error" in st.session_state:
+                        del st.session_state["api_key_error"]
+                    st.toast("API Key cleared.")
+                    st.rerun()
+        st.markdown("---")
 
     # Document Uploader Section
     st.subheader("📂 Document Ingestion")
@@ -197,7 +235,17 @@ with st.sidebar:
 
                     except Exception as e:
                         had_error = True
-                        error_msg = f"Failed to index '{file_obj.name}': {str(e)}"
+                        err_str = str(e)
+                        if "api_key_invalid" in err_str.lower() or "api key not valid" in err_str.lower() or "invalid gemini api key" in err_str.lower():
+                            st.session_state["api_key_error"] = (
+                                "Gemini API key was rejected by Google AI. Please update your key above."
+                            )
+                            error_msg = (
+                                f"Failed to index '{file_obj.name}': Invalid Gemini API Key. "
+                                f"Please update your API key in the sidebar."
+                            )
+                        else:
+                            error_msg = f"Failed to index '{file_obj.name}': {err_str}"
                         st.error(f"❌ {error_msg}")
                         st.session_state["last_ingestion_error"] = error_msg
                         # Do not continue loop on fatal embedding error
@@ -413,11 +461,26 @@ if query_input:
                 })
 
             except Exception as e:
-                error_msg = f"An unexpected error occurred during processing: {str(e)}"
-                st.error(error_msg)
+                err_str = str(e)
+                if "api_key_invalid" in err_str.lower() or "api key not valid" in err_str.lower() or "invalid gemini api key" in err_str.lower():
+                    st.session_state["api_key_error"] = (
+                        "Gemini API key was rejected by Google AI. Please update your key in the sidebar."
+                    )
+                    error_display = (
+                        "❌ **Invalid API Key**: Google AI rejected the provided Gemini API key (`API_KEY_INVALID`).\n\n"
+                        "👉 **How to fix:**\n"
+                        "1. Open the sidebar on the left.\n"
+                        "2. Click **'🔑 Change / Update API Key'**.\n"
+                        "3. Enter a valid key from [Google AI Studio](https://aistudio.google.com/) and click **Update Key**.\n"
+                        "4. Then try asking your question again!"
+                    )
+                else:
+                    error_display = f"An unexpected error occurred during processing: {err_str}"
+
+                st.error(error_display)
                 st.session_state.messages.append({
                     "role": "assistant",
-                    "content": error_msg,
+                    "content": error_display,
                     "sources": [],
                     "chunks": [],
                     "is_fallback": True,
